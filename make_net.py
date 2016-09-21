@@ -2,10 +2,10 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
 def weights_init(shape):
-    return tf.get_variable('weight', shape, initializer=tf.truncated_normal_initializer())
+    return tf.Variable(tf.truncated_normal(shape))
 
 def bias_init(shape):
-    return tf.get_variable('bias', shape, initializer=tf.constant_initializer())
+    return tf.Variable(tf.constant(0.1))
 
 def conv2d(x, w):
     return tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='SAME')
@@ -46,10 +46,10 @@ def train_model():
 
     #Flatten
     classes = 10
-    
-    flat = tf.reshape(relu_list[-1], shape=[-1, 144])
-    weight = weights_init([144, 10])
-    bias = bias_init([10])
+    pool = tf.nn.max_pool(relu_list[-1], ksize=[1,4,4,1], strides=[1,4,4,1], padding='VALID')
+    flat = tf.reshape(pool, shape=[-1, 784])
+    w_out = weights_init([784, 10])
+    b_out = bias_init([10])
 
     dense_out = tf.matmul(flat, w_out)
     output = tf.nn.softmax(dense_out + b_out)
@@ -60,8 +60,10 @@ def train_model():
     correct_prediction = tf.equal(tf.argmax(output,1), tf.argmax(y,1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    with tf.session() as sess:
+    print relu_list
+    with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
+        summary_writer = tf.train.SummaryWriter('../logs/', sess.graph)
         for i in range(1000):
             batch = mnist.train.next_batch(100)
             if i%100 == 0:
@@ -69,6 +71,7 @@ def train_model():
                 print "Accuracy: {}".format(train_accuracy)
             results = sess.run(train_step, feed_dict={x: batch[0], y: batch[1]})
 
+        
 
 if __name__ == "__main__":
     train_model()
