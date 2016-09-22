@@ -10,13 +10,15 @@ def bias_init(shape):
 def conv2d(x, w):
     return tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='SAME')
 
-def bn_relu_conv(n_layer, inputs, w_shape, b_shape):
-    with tf.variable_scope(n_layer) as scope:
-        weights = tf.get_variable('weights', w_shape, tf.truncated_normal_initializer())
-        bias = tf.get_variable('bias', b_shape, tf.constant_initializer())
-        conv = tf.nn.conv2d(inputs, weights, strides=[1,3,3,1], padding='SAME')
-        relu = tf.nn.relu(conv + bias)
-        return relu, weights, bias
+def maxpool(x):
+    return tf.nn.max_pool(x, ksize=[1,2,2,1], strides=[1,2,2,1], padding="VALID")
+
+def bn_relu_conv(inputs, w_shape, b_shape):
+    w = weights_init(w_shape) 
+    b = bias_init(b_shape) 
+    conv = conv2d(inputs, w)
+    relu = tf.nn.relu(conv + b)
+    return relu
 
 def train_model():
 
@@ -26,33 +28,48 @@ def train_model():
     
 
     #First conv layer
-    x0 = tf.reshape(x, [-1,28,28,1])
-    w_conv1 = weights_init([5,5,1,16])
-    b_conv1 = bias_init([16])
+    with tf.variable_scope("input"):
+        x_shape = tf.reshape(x, [-1,28,28,1])
+        relu = bn_relu_conv(x_shape, [3,3,1,16], [16])
+        block1 = [relu]
 
-    conv1 = conv2d(x0, w_conv1)
-    relu1 = tf.nn.relu(conv1 + b_conv1)
-
-    relu_list = [relu1]
+    n_old = 16
+    n_new = 32 
 
     for i in range(1,3):
-        name = str(i)
-        with tf.variable_scope(name) as scope:
-            weight = weights_init([3,3,16,16])
-            bias = bias_init([16])
-            conv = conv2d(relu_list[i-1], weight)
-            relu = tf.nn.relu(conv + bias)
-            relu_list.append(relu)
+        name = "block1-{}".format(i)
+        with tf.variable_scope(name): 
+            relu = bn_relu_conv(block1[i-1], [3,3,n_old, n_new], [n_new])
+            block1.append(relu)
+            n_old = n_new
+            n_new *= 2
 
-    #Flatten
-    classes = 10
-    pool = tf.nn.max_pool(relu_list[-1], ksize=[1,4,4,1], strides=[1,4,4,1], padding='VALID')
-    flat = tf.reshape(pool, shape=[-1, 784])
-    w_out = weights_init([784, 10])
-    b_out = bias_init([10])
+    pool1 = maxpool(block1[-1])    
 
-    dense_out = tf.matmul(flat, w_out)
-    output = tf.nn.softmax(dense_out + b_out)
+    n_old = 64 
+    n_new = 128
+
+    block2 = [pool1]
+
+    for i in range(1,3):
+        name = "block2-{}".format(i)
+        with tf.variable_scope(name): 
+            relu = bn_relu_conv(block2[i-1], [3,3,n_old, n_new], [n_new])
+            block2.append(relu)
+            n_old = n_new
+            n_new *= 2
+        
+    pool2 = maxpool(block2[-1])
+
+    pool_shape = pool2.get_shape()
+    n_flat = int(pool_shape[1])*int(pool_shape[2])*int(pool_shape[3])
+
+    with tf.variable_scope("output"):
+        flat = tf.reshape(pool2, shape=[-1, n_flat])
+        w = weights_init([n_flat, 10])
+        b = bias_init([10])
+        dense = tf.matmul(flat, w)
+        output = tf.nn.softmax(dense + b)
 
     cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(output), reduction_indices=[1]))
     train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
@@ -60,7 +77,6 @@ def train_model():
     correct_prediction = tf.equal(tf.argmax(output,1), tf.argmax(y,1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    print relu_list
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
         summary_writer = tf.train.SummaryWriter('../logs/', sess.graph)
