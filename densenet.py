@@ -47,30 +47,26 @@ def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
     with tf.variable_scope("input"):
         x_in = tf.reshape(x, [-1,28,28,1])
         w = weights_init([3,3,1,n_channels])
-        conv = conv2d(x_in, w)
-        block1 = [conv]
+        layer = conv2d(x_in, w)
 
     N = (depth - 3)/2
 
     for i in range(1,N+1):
         name = "block1-{}".format(i)
         with tf.variable_scope(name): 
-            layer = add_layer(block1[i-1], n_channels, dropout)
-            block1.append(layer)
+            layer = add_layer(layer, n_channels, dropout)
         n_channels += growth_rate
-
-    trans1 = transition(block1[-1], n_channels, dropout)
-    block2 = [trans1]
+    with tf.variable_scope("trans1"):
+        layer = transition(layer, n_channels, dropout)
 
     for i in range(1,3):
         name = "block2-{}".format(i)
         with tf.variable_scope(name): 
-            layer = add_layer(block2[i-1], n_channels, dropout)
-            block2.append(layer)
+            layer = add_layer(layer, n_channels, dropout)
         n_channels += growth_rate
 
     with tf.variable_scope("output"):
-        batch = tf.contrib.layers.batch_norm(block2[-1])
+        batch = tf.contrib.layers.batch_norm(layer)
         relu = tf.nn.relu(batch)
         rs = relu.get_shape()
         n_flat = int(rs[1])*int(rs[2])*int(rs[3])
