@@ -18,11 +18,9 @@ def bn_relu_conv(inputs, w_shape, b_shape, dropout):
     relu = tf.nn.relu(batch)
     w = weights_init(w_shape) 
     b = bias_init(b_shape) 
-    conv = conv2d(inputs, w)
-    if dropout > 0:
-        drop = tf.nn.dropout(conv, dropout)
-        return drop
-    return conv
+    conv = conv2d(relu, w)
+    drop = tf.nn.dropout(conv, dropout)
+    return drop
 
 def add_layer(bottom, num_filter, dropout):
     num_old = int(bottom.get_shape()[3])
@@ -36,9 +34,10 @@ def transition(bottom, num_filter, dropout):
     pool = maxpool(brc)
     return pool
 
-def train_model(depth=7, first_output=16, growth_rate=12, dropout=1):
+def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
     x = tf.placeholder(tf.float32, shape=[None, 784])
     y = tf.placeholder(tf.float32, shape=[None, 10])
+    dropout = tf.placeholder(tf.float32)
     mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
     
     n_classes = 10
@@ -93,9 +92,9 @@ def train_model(depth=7, first_output=16, growth_rate=12, dropout=1):
         for i in range(1000):
             batch = mnist.train.next_batch(100)
             if i%100 == 0:
-                train_accuracy = accuracy.eval(feed_dict={x:batch[0], y: batch[1]})
+                train_accuracy = accuracy.eval(feed_dict={x:batch[0], y: batch[1], dropout: 1})
                 print "Accuracy: {}".format(train_accuracy)
-            results = sess.run(train_step, feed_dict={x: batch[0], y: batch[1]})
+            results = sess.run(train_step, feed_dict={x: batch[0], y: batch[1], dropout: drop_num})
 
         
 
