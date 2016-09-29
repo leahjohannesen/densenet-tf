@@ -1,6 +1,7 @@
 import tensorflow as tf 
 from tensorflow.examples.tutorials.mnist import input_data
 
+#Basic functions for initializing layers
 def weights_init(shape):
     return tf.Variable(tf.truncated_normal(shape))
 
@@ -13,27 +14,38 @@ def conv2d(x, w):
 def maxpool(x):
     return tf.nn.max_pool(x, ksize=[1,2,2,1], strides=[1,2,2,1], padding="VALID")
 
+def dropout(x, keep):
+    return tf.nn.dropout(x, keep)
+
+##The slightly more complicated blocks of layers
+
+#Basic block of the model
+#Takes in a convolution layer, adds batch norm, relu, and a new convolution with dropout
 def bn_relu_conv(inputs, w_shape, b_shape, dropout):
     batch = tf.contrib.layers.batch_norm(inputs)
     relu = tf.nn.relu(batch)
     w = weights_init(w_shape) 
     b = bias_init(b_shape) 
     conv = conv2d(relu, w)
-    drop = tf.nn.dropout(conv, dropout)
+    drop = dropout(conv, dropout)
     return drop
 
+#Adds a batch norm/relu/conv layer and concatenates it with the input layer
 def add_layer(bottom, num_filter, dropout):
     num_old = int(bottom.get_shape()[3])
     brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], dropout)
     concat = tf.concat(3, [bottom, brc])
     return concat
 
+#The transition layer between blocks
+#Performs a bn/relu/conv and then a 2x2 maxpool to reduce the image size
 def transition(bottom, num_filter, dropout):
     num_old = int(bottom.get_shape()[3])
     brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], dropout)
     pool = maxpool(brc)
     return pool
 
+#The actual training step
 def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
     x = tf.placeholder(tf.float32, shape=[None, 784])
     y = tf.placeholder(tf.float32, shape=[None, 10])
