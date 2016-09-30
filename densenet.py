@@ -21,27 +21,27 @@ def dropout(x, keep):
 
 #Basic block of the model
 #Takes in a convolution layer, adds batch norm, relu, and a new convolution with dropout
-def bn_relu_conv(inputs, w_shape, b_shape, dropout):
-    batch = tf.contrib.layers.batch_norm(inputs)
-    relu = tf.nn.relu(batch)
+def bn_relu_conv(inputs, w_shape, b_shape, keep):
     w = weights_init(w_shape) 
     b = bias_init(b_shape) 
+    batch = tf.contrib.layers.batch_norm(inputs)
+    relu = tf.nn.relu(batch + b)
     conv = conv2d(relu, w)
-    drop = dropout(conv, dropout)
+    drop = dropout(conv, keep)
     return drop
 
 #Adds a batch norm/relu/conv layer and concatenates it with the input layer
-def add_layer(bottom, num_filter, dropout):
+def add_layer(bottom, num_filter, keep):
     num_old = int(bottom.get_shape()[3])
-    brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], dropout)
+    brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], keep)
     concat = tf.concat(3, [bottom, brc])
     return concat
 
 #The transition layer between blocks
 #Performs a bn/relu/conv and then a 2x2 maxpool to reduce the image size
-def transition(bottom, num_filter, dropout):
+def transition(bottom, num_filter, keep):
     num_old = int(bottom.get_shape()[3])
-    brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], dropout)
+    brc = bn_relu_conv(bottom, [3,3,num_old,num_filter], [num_filter], keep)
     pool = maxpool(brc)
     return pool
 
@@ -49,7 +49,7 @@ def transition(bottom, num_filter, dropout):
 def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
     x = tf.placeholder(tf.float32, shape=[None, 784])
     y = tf.placeholder(tf.float32, shape=[None, 10])
-    dropout = tf.placeholder(tf.float32)
+    keep = tf.placeholder(tf.float32)
     mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
     
     n_classes = 10
@@ -66,15 +66,15 @@ def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
     for i in range(1,N+1):
         name = "block1-{}".format(i)
         with tf.variable_scope(name): 
-            layer = add_layer(layer, n_channels, dropout)
+            layer = add_layer(layer, n_channels, keep)
         n_channels += growth_rate
     with tf.variable_scope("trans1"):
-        layer = transition(layer, n_channels, dropout)
+        layer = transition(layer, n_channels, keep)
 
     for i in range(1,3):
         name = "block2-{}".format(i)
         with tf.variable_scope(name): 
-            layer = add_layer(layer, n_channels, dropout)
+            layer = add_layer(layer, n_channels, keep)
         n_channels += growth_rate
 
     with tf.variable_scope("output"):
@@ -100,9 +100,9 @@ def train_model(depth=7, first_output=16, growth_rate=12, drop_num=0.5):
         for i in range(1000):
             batch = mnist.train.next_batch(100)
             if i%100 == 0:
-                train_accuracy = accuracy.eval(feed_dict={x:batch[0], y: batch[1], dropout: 1})
+                train_accuracy = accuracy.eval(feed_dict={x:batch[0], y: batch[1], keep: 1})
                 print "Accuracy: {}".format(train_accuracy)
-            results = sess.run(train_step, feed_dict={x: batch[0], y: batch[1], dropout: drop_num})
+            results = sess.run(train_step, feed_dict={x: batch[0], y: batch[1], keep: drop_num})
 
         
 
