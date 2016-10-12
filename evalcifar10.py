@@ -6,12 +6,13 @@ import densenet
 sys.path.append('/home/ubuntu/data-classes/')
 from cifar10 import cifar10
 
-def train(drop=0.5):
+def train(drop=0.8):
     data = cifar10()
 
     x = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
     y = tf.placeholder(tf.float32, shape=[None, 10])
 
+    lr = tf.placeholder(tf.float32)
     keep = tf.placeholder(tf.float32)
     is_train = tf.placeholder(tf.bool)
 
@@ -20,7 +21,7 @@ def train(drop=0.5):
 
     loss = tf.nn.softmax_cross_entropy_with_logits(y_pred, y)
     #This calls the optimizer from the opts.py module. Helps with clutter.
-    train_step = tf.train.AdamOptimizer().minimize(loss)
+    train_step = tf.train.MomentumOptimizer(lr, 0.9, use_nesterov=True).minimize(loss)
 
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
@@ -30,11 +31,11 @@ def train(drop=0.5):
         batch_size = 64 
         total_train = len(data.x_trn)
         deciles = int(total_train/(10*batch_size))
+        lrate = 0.01
 
         #Computes tstidation accuracy iteratively to avoid blowing up memory
         print '-----Starting the Session-----'
         tst_list = []
-        n_test = 0
         while True:
             batch_tst = data.next_tst(batch_size)
             if not batch_tst:
@@ -42,8 +43,6 @@ def train(drop=0.5):
             tst_acc = sess.run(acc, feed_dict={x: batch_tst[0], y: batch_tst[1], 
                                             keep: 1.0, is_train: False})
             tst_list.append(tst_acc)
-            if n_test % 25 == 0: print 'Pic {}'.format(n_test * 64)
-            n_test += 1
 
         print '\n' + '- '*10
         print "Starting Test Accuray: {}".format(np.mean(tst_list))
@@ -54,6 +53,7 @@ def train(drop=0.5):
         for epoch in range(epochs):
             print "-----Starting Epoch {}-----".format(epoch)
             n = 0
+            if epoch % 75 == 0: lrate = 0.001
 
             while True:
                 #Gets next batch of data, returns tuple of x/y if it hasn't gone through
@@ -66,7 +66,7 @@ def train(drop=0.5):
                         if not batch_tst:
                             break
                         tst_acc = sess.run(acc, feed_dict={x: batch_tst[0], y: batch_tst[1],
-                                                           keep: 1.0, is_train: False})
+                                            lr: lrate, keep: 1.0, is_train: False})
                         tst_list.append(tst_acc)
                     print "End of Epoch"
                     print "Test Accuracy: {}\n".format(np.mean(tst_list))
